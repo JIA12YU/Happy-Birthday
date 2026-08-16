@@ -1,0 +1,1230 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hand Reactive Particle System</title>
+  <style>
+    :root {
+      --ink: #f8f2df;
+      --muted: rgba(248, 242, 223, 0.66);
+      --line: rgba(248, 242, 223, 0.18);
+      --glass: rgba(255, 255, 255, 0.105);
+      --glass-strong: rgba(255, 255, 255, 0.18);
+      --ground: #0f100d;
+      --script: Georgia, "Times New Roman", "Palatino Linotype", serif;
+      --cn-script: "STXingkai", "Xingkai SC", "Kaiti SC", "KaiTi", "STKaiti", serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 18% 12%, rgba(247, 231, 189, 0.16), transparent 28%),
+        radial-gradient(circle at 84% 78%, rgba(128, 199, 183, 0.12), transparent 30%),
+        linear-gradient(145deg, #0f100d 0%, #171711 55%, #11130f 100%);
+      color: var(--ink);
+      font-family: var(--script);
+      font-style: italic;
+    }
+
+    #app, #stage {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    #stage {
+      display: block;
+      outline: none;
+      transition: opacity 1.2s ease, filter 1.2s ease;
+    }
+
+    #cakeStage {
+      position: fixed;
+      inset: 0;
+      z-index: 6;
+      width: 100%;
+      height: 100%;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 1.4s ease;
+    }
+
+    .cake-copy {
+      position: fixed;
+      z-index: 8;
+      top: clamp(24px, 5vh, 58px);
+      left: 50%;
+      width: min(90vw, 760px);
+      color: #60485f;
+      text-align: center;
+      opacity: 0;
+      pointer-events: none;
+      transform: translate(-50%, 22px);
+      transition: opacity 1.2s ease 0.3s, transform 1.2s cubic-bezier(.22,1,.36,1) 0.3s;
+    }
+
+    .cake-copy h2 {
+      margin: 0;
+      font-size: clamp(34px, 5vw, 76px);
+      font-weight: 400;
+      line-height: 1;
+    }
+
+    .cake-copy p {
+      margin: 14px 0 0;
+      font-family: var(--cn-script);
+      font-size: clamp(16px, 1.7vw, 25px);
+      font-style: normal;
+      letter-spacing: .08em;
+    }
+
+    body.cake-mode {
+      background:
+        radial-gradient(circle at 22% 18%, rgba(255,255,255,.94), transparent 32%),
+        radial-gradient(circle at 78% 72%, rgba(230,198,247,.52), transparent 34%),
+        linear-gradient(145deg, #fffaf4, #f7e8f6 54%, #e8e0fa);
+    }
+
+    body.cake-mode #stage { opacity: 0.08; filter: blur(8px); }
+    body.cake-mode #cakeStage { opacity: 1; pointer-events: auto; }
+    body.cake-mode .cake-copy { opacity: 1; transform: translate(-50%, 0); }
+    body.cake-mode .brand { opacity: 0; transform: translateY(-18px); }
+    body.cake-mode .controls { display: none; }
+    body.cake-mode .panel { background: rgba(255,255,255,.38); border-color: rgba(105,74,112,.18); }
+    body.cake-mode .status-text,
+    body.cake-mode .metric { color: rgba(76,54,78,.72); border-color: rgba(105,74,112,.2); }
+    body.cake-mode button { color: #60485f; border-color: rgba(105,74,112,.24); background: rgba(255,255,255,.5); }
+    body.cake-mode .mode { color: #735d76; background: rgba(255,255,255,.48); border-color: rgba(105,74,112,.18); }
+    body.cake-mode .dot { background: #e99ac3; box-shadow: 0 0 18px rgba(233,154,195,.8); }
+
+    @media (min-width: 900px) {
+      body.cake-mode .cake-copy {
+        left: 34%;
+        width: min(58vw, 700px);
+      }
+    }
+
+    .hud .brand,
+    .hud .panel,
+    .mode {
+      transition: opacity .9s ease, transform .9s ease, background .9s ease, color .9s ease;
+    }
+
+    .hud {
+      position: fixed;
+      inset: 22px 24px auto 24px;
+      z-index: 10;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      pointer-events: none;
+    }
+
+    .brand {
+      max-width: 440px;
+      pointer-events: none;
+    }
+
+    .kicker {
+      margin: 0 0 10px;
+      color: var(--muted);
+      font-size: 11px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 0;
+      color: var(--ink);
+      font-size: clamp(28px, 5vw, 72px);
+      line-height: 0.94;
+      font-weight: 300;
+      letter-spacing: 0.01em;
+    }
+
+    .hint {
+      margin: 16px 0 0;
+      max-width: 34rem;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.65;
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-style: normal;
+    }
+
+    .panel {
+      pointer-events: auto;
+      min-width: min(420px, calc(100vw - 48px));
+      border: 1px solid var(--line);
+      background: rgba(18, 19, 15, 0.42);
+      backdrop-filter: blur(18px) saturate(1.08);
+      -webkit-backdrop-filter: blur(18px) saturate(1.08);
+      padding: 14px;
+    }
+
+    .status {
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      align-items: center;
+      gap: 10px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .status-text {
+      min-width: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .metric {
+      display: inline-grid;
+      place-items: center;
+      min-width: 34px;
+      height: 34px;
+      border: 1px solid var(--line);
+      color: var(--ink);
+      font-size: 13px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      padding-top: 12px;
+    }
+
+    label {
+      display: grid;
+      gap: 7px;
+      color: var(--muted);
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    input[type="color"] {
+      width: 100%;
+      height: 36px;
+      padding: 0;
+      border: 1px solid var(--line);
+      border-radius: 0;
+      background: transparent;
+      cursor: pointer;
+    }
+
+    .actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    button {
+      appearance: none;
+      border: 1px solid var(--line);
+      border-radius: 0;
+      background: var(--glass);
+      color: var(--ink);
+      min-height: 38px;
+      padding: 0 14px;
+      font: inherit;
+      font-size: 12px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: border-color 180ms ease, background 180ms ease, transform 180ms ease;
+    }
+
+    button:hover {
+      border-color: rgba(248, 242, 223, 0.44);
+      background: var(--glass-strong);
+      transform: translateY(-1px);
+    }
+
+    .camera {
+      position: fixed;
+      right: 24px;
+      bottom: 24px;
+      z-index: 9;
+      width: 176px;
+      border: 1px solid var(--line);
+      background: rgba(18, 19, 15, 0.36);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      overflow: hidden;
+      opacity: 0.76;
+    }
+
+    video {
+      display: block;
+      width: 100%;
+      height: auto;
+      transform: scaleX(-1);
+    }
+
+    .mode {
+      position: fixed;
+      left: 50%;
+      bottom: 34px;
+      z-index: 10;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border: 1px solid var(--line);
+      background: rgba(18, 19, 15, 0.36);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      padding: 10px 14px;
+      color: var(--muted);
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      pointer-events: none;
+    }
+
+    .dot {
+      width: 7px;
+      height: 7px;
+      background: #f7e7bd;
+      border-radius: 999px;
+      box-shadow: 0 0 18px rgba(247, 231, 189, 0.82);
+    }
+
+    .permission {
+      position: fixed;
+      inset: auto 24px 24px 24px;
+      z-index: 20;
+      display: none;
+      max-width: 560px;
+      border: 1px solid rgba(247, 231, 189, 0.34);
+      background: rgba(18, 19, 15, 0.72);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      padding: 16px;
+      color: var(--ink);
+    }
+
+    .permission strong {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 14px;
+    }
+
+    .permission p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    @media (max-width: 760px) {
+      .hud {
+        inset: 16px;
+        display: grid;
+      }
+
+      .panel {
+        min-width: 0;
+        width: 100%;
+      }
+
+      .camera {
+        width: 128px;
+        right: 16px;
+        bottom: 16px;
+      }
+
+      .mode {
+        left: 16px;
+        right: 16px;
+        bottom: 158px;
+        transform: none;
+        justify-content: center;
+      }
+
+      .permission {
+        inset: auto 16px 16px 16px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="stage" aria-label="3D hand reactive particle system"></canvas>
+  <canvas id="cakeStage" aria-label="Interactive particle birthday cake"></canvas>
+  <div class="cake-copy" aria-live="polite">
+    <h2>Make a Wish</h2>
+    <p id="cakeHint">心中有梦想，永远是少年，赵老师生日快乐~</p>
+  </div>
+
+  <div class="hud">
+    <section class="brand" aria-label="Title">
+      <p class="kicker">Three.js · Hand Reactive</p>
+      <h1>Gesture<br />Particles</h1>
+      <p class="hint">
+        三个手势：大拇指 + 小拇指的「6」让粒子紧密聚拢；食指向上的「1」让粒子形成更大的聚拢；
+        先握拳再张开，会连续触发多段烟花爆炸。
+      </p>
+    </section>
+
+    <section class="panel" aria-label="Controls">
+      <div class="status">
+        <div class="status-text" id="status">摄像头未开启。点击 Camera 启用手势。</div>
+        <span class="metric" id="gesture">–</span>
+        <span class="metric" id="openness">0%</span>
+      </div>
+      <div class="controls">
+        <label>
+          Color A
+          <input id="colorA" type="color" value="#f7e7bd" />
+        </label>
+        <label>
+          Color B
+          <input id="colorB" type="color" value="#80c7b7" />
+        </label>
+      </div>
+      <div class="actions">
+        <button id="fullscreen" type="button">Fullscreen</button>
+        <button id="cameraBtn" type="button">Camera</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="camera" id="cameraPreview" aria-label="Camera preview" style="display: none;">
+    <video id="camera" autoplay muted playsinline></video>
+  </div>
+
+  <div class="mode" aria-live="polite">
+    <span class="dot"></span>
+    <span id="modeLabel">Waiting for hand</span>
+  </div>
+
+  <div class="permission" id="permission">
+    <strong>需要摄像头权限</strong>
+    <p>
+      请在浏览器弹窗中允许摄像头。若直接双击 HTML 后浏览器不允许调用摄像头，
+      请用本地服务器打开此文件所在目录。
+    </p>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+  <script type="module">
+    import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
+
+    const canvas = document.getElementById("stage");
+    const cakeCanvas = document.getElementById("cakeStage");
+    const cakeCtx = cakeCanvas.getContext("2d");
+    const cakeHint = document.getElementById("cakeHint");
+    const video = document.getElementById("camera");
+    const statusEl = document.getElementById("status");
+    const gestureEl = document.getElementById("gesture");
+    const opennessEl = document.getElementById("openness");
+    const modeLabel = document.getElementById("modeLabel");
+    const permission = document.getElementById("permission");
+    const cameraPreview = document.getElementById("cameraPreview");
+    const cameraButton = document.getElementById("cameraBtn");
+    const colorAInput = document.getElementById("colorA");
+    const colorBInput = document.getElementById("colorB");
+
+    const renderer = new THREE.WebGLRenderer({
+      canvas,
+      antialias: true,
+      alpha: true,
+      powerPreference: "high-performance",
+    });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x0f100d, 0.045);
+
+    const camera = new THREE.PerspectiveCamera(58, window.innerWidth / window.innerHeight, 0.1, 220);
+    camera.position.set(0, 0.7, 18);
+
+    const root = new THREE.Group();
+    scene.add(root);
+
+    const particleCount = 9200;
+    const positions = new Float32Array(particleCount * 3);
+    const colors = new Float32Array(particleCount * 3);
+    const base = new Float32Array(particleCount * 3);
+    const textTargets = new Float32Array(particleCount * 3);
+    const velocity = new Float32Array(particleCount * 3);
+    const seeds = new Float32Array(particleCount * 4);
+    const phase = new Float32Array(particleCount);
+
+    const colorA = new THREE.Color(colorAInput.value);
+    const colorB = new THREE.Color(colorBInput.value);
+    const tempColor = new THREE.Color();
+
+    function rand(min, max) {
+      return min + Math.random() * (max - min);
+    }
+
+    function resetParticle(i) {
+      const ix = i * 3;
+      const u = Math.random();
+      const v = Math.random();
+      const theta = Math.PI * 2 * u;
+      const phi = Math.acos(2 * v - 1);
+      const radius = Math.pow(Math.random(), 0.54) * 5.3;
+      const shell = 0.72 + Math.random() * 0.35;
+
+      base[ix] = Math.sin(phi) * Math.cos(theta) * radius * shell;
+      base[ix + 1] = Math.cos(phi) * radius * 0.9;
+      base[ix + 2] = Math.sin(phi) * Math.sin(theta) * radius * shell;
+
+      positions[ix] = base[ix] + rand(-0.08, 0.08);
+      positions[ix + 1] = base[ix + 1] + rand(-0.08, 0.08);
+      positions[ix + 2] = base[ix + 2] + rand(-0.08, 0.08);
+
+      velocity[ix] = 0;
+      velocity[ix + 1] = 0;
+      velocity[ix + 2] = 0;
+      seeds[i * 4] = rand(0.5, 1.5);
+      seeds[i * 4 + 1] = rand(0, Math.PI * 2);
+      seeds[i * 4 + 2] = rand(0.3, 1);
+      seeds[i * 4 + 3] = rand(0.7, 1.3);
+      phase[i] = 0;
+    }
+
+    for (let i = 0; i < particleCount; i++) resetParticle(i);
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+
+    const material = new THREE.PointsMaterial({
+      size: 0.038,
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.95,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+
+    const points = new THREE.Points(geometry, material);
+    root.add(points);
+
+    const ambient = new THREE.AmbientLight(0xffffff, 0.7);
+    scene.add(ambient);
+
+    const state = {
+      handVisible: false,
+      openness: 0.35,
+      targetOpenness: 0.35,
+      gesture: 0,
+      gestureName: "none",
+      lastGesture: 0,
+      fireworkUntil: 0,
+      burstCount: 0,
+      nextBurstAt: 0,
+      textMode: false,
+      textStartAt: 0,
+      heartArmed: true,
+      wasFist: false,
+      fistAt: 0,
+      gatherTarget: 0,
+      mouseX: 0,
+      mouseY: 0,
+    };
+
+    const cakeState = {
+      active: false,
+      particles: [],
+      sparkles: [],
+      pointerX: 0.5,
+      pointerY: 0.5,
+      pointerDown: false,
+      handX: 0.5,
+      handY: 0.5,
+      pinch: false,
+      wish: false,
+    };
+
+    const candles = [
+      { nx: 0.43, ny: 0.42, lit: false, out: false },
+      { nx: 0.50, ny: 0.385, lit: false, out: false },
+      { nx: 0.57, ny: 0.42, lit: false, out: false },
+    ];
+
+    function ellipseTarget(cx, cy, rx, ry) {
+      const angle = Math.random() * Math.PI * 2;
+      const radius = Math.sqrt(Math.random());
+      return { x: cx + Math.cos(angle) * rx * radius, y: cy + Math.sin(angle) * ry * radius };
+    }
+
+    function buildCakeParticles(width, height) {
+      const particles = [];
+      const centerX = width * 0.5;
+      const tiers = [
+        {
+          top: 0.665, bottom: 0.82, rx: 0.245, topRy: 0.036,
+          sideCount: 760, topCount: 330, rimCount: 250,
+          palette: ["#f8eaff", "#e6cef6", "#caa9e8", "#b78fdb"],
+          topPalette: ["#fffafd", "#f3def9", "#ddbff1"],
+        },
+        {
+          top: 0.56, bottom: 0.68, rx: 0.195, topRy: 0.031,
+          sideCount: 620, topCount: 275, rimCount: 220,
+          palette: ["#fffdf4", "#fff1ce", "#f8dca3", "#edc67f"],
+          topPalette: ["#fffef8", "#fff5dc", "#ffe7b7"],
+        },
+        {
+          top: 0.485, bottom: 0.575, rx: 0.145, topRy: 0.027,
+          sideCount: 500, topCount: 230, rimCount: 190,
+          palette: ["#fff0fa", "#f7cde8", "#e9acd7", "#d98fc8"],
+          topPalette: ["#fffafd", "#fce2f2", "#f3c7e5"],
+        },
+      ];
+
+      function addParticle(target, palette, sizeBoost = 0) {
+        particles.push({
+          x: width * (0.5 + (Math.random() - 0.5) * 1.08),
+          y: height * (0.46 + Math.random() * 0.58),
+          tx: target.x,
+          ty: target.y,
+          size: 1.15 + Math.random() * (2.75 + sizeBoost),
+          alpha: 0.55 + Math.random() * 0.43,
+          color: palette[Math.floor(Math.random() * palette.length)],
+          phase: Math.random() * Math.PI * 2,
+        });
+      }
+
+      for (const tier of tiers) {
+        const topY = height * tier.top;
+        const bottomY = height * tier.bottom;
+        const radiusX = width * tier.rx;
+        const radiusY = height * tier.topRy;
+
+        // Dense vertical faces establish a crisp cylindrical silhouette.
+        for (let i = 0; i < tier.sideCount; i++) {
+          const normalizedY = Math.random();
+          const y = topY + normalizedY * (bottomY - topY);
+          const edgeSoftness = 0.985 - Math.sin(normalizedY * Math.PI) * 0.018;
+          const x = centerX + (Math.random() * 2 - 1) * radiusX * edgeSoftness;
+          addParticle({ x, y }, tier.palette);
+        }
+
+        // Bright elliptical tops make every tier read as a separate cake layer.
+        for (let i = 0; i < tier.topCount; i++) {
+          addParticle(ellipseTarget(centerX, topY, radiusX, radiusY), tier.topPalette, 0.35);
+        }
+
+        // Double frosting rims give the tiers a polished, scalloped edge.
+        for (let i = 0; i < tier.rimCount; i++) {
+          const angle = Math.random() * Math.PI * 2;
+          const isLowerRim = i % 4 === 0;
+          const rimY = isLowerRim ? bottomY : topY;
+          const jitter = (Math.random() - 0.5) * 3.2;
+          addParticle({
+            x: centerX + Math.cos(angle) * radiusX + jitter,
+            y: rimY + Math.sin(angle) * radiusY * (isLowerRim ? 0.45 : 1) + jitter * 0.25,
+          }, ["#fffefb", "#fff3fb", "#f4d8ff"], 0.75);
+        }
+
+        // A few concentrated highlights add depth without changing the soft style.
+        for (let i = 0; i < 80; i++) {
+          const x = centerX - radiusX * (0.68 - Math.random() * 0.3);
+          const y = topY + (bottomY - topY) * (0.12 + Math.random() * 0.68);
+          addParticle({ x, y }, ["#ffffff", "#fff8fd"], 0.25);
+        }
+      }
+
+      // A restrained halo grounds the cake while keeping its stepped outline visible.
+      for (let i = 0; i < 260; i++) {
+        const target = ellipseTarget(centerX, height * 0.84, width * 0.29, height * 0.032);
+        addParticle(target, ["#f5d7ff", "#e7c7f6", "#fff5dc"], 0.25);
+      }
+      cakeState.particles = particles;
+      cakeState.sparkles = [];
+    }
+
+    function flamePoint(candle) {
+      return { x: candle.nx * window.innerWidth, y: candle.ny * window.innerHeight };
+    }
+
+    function tryLightCake(x, y) {
+      for (const candle of candles) {
+        const flame = flamePoint(candle);
+        if (!candle.out && !candle.lit && Math.hypot(x - flame.x, y - flame.y) < Math.max(42, window.innerWidth * 0.026)) {
+          candle.lit = true;
+          cakeHint.textContent = candles.every((item) => item.lit) ? "蜡烛都亮了。点击火苗，许下愿望。" : "火光亮起来了，再点亮下一根蜡烛。";
+        }
+      }
+    }
+
+    function extinguishCake(x, y) {
+      for (const candle of candles) {
+        const flame = flamePoint(candle);
+        if (candle.lit && Math.hypot(x - flame.x, y - flame.y) < Math.max(46, window.innerWidth * 0.03)) {
+          candle.lit = false;
+          candle.out = true;
+        }
+      }
+      if (candles.every((item) => item.out)) {
+        cakeState.wish = true;
+        cakeHint.textContent = "愿望会沿着光，慢慢抵达。生日快乐。";
+        for (let i = 0; i < 180; i++) {
+          const angle = Math.random() * Math.PI * 2;
+          const speed = 1.2 + Math.random() * 5;
+          cakeState.sparkles.push({ x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed - 2, life: 1, color: i % 2 ? "#e8a5cf" : "#b596db" });
+        }
+      }
+    }
+
+    function setColors() {
+      colorA.set(colorAInput.value);
+      colorB.set(colorBInput.value);
+      for (let i = 0; i < particleCount; i++) {
+        const ix = i * 3;
+        const yNorm = THREE.MathUtils.clamp((base[ix + 1] + 5.4) / 10.8, 0, 1);
+        const mix = 0.18 + yNorm * 0.72 + Math.sin(seeds[i * 4 + 1]) * 0.08;
+        tempColor.copy(colorA).lerp(colorB, THREE.MathUtils.clamp(mix, 0, 1));
+        colors[ix] = tempColor.r;
+        colors[ix + 1] = tempColor.g;
+        colors[ix + 2] = tempColor.b;
+      }
+      geometry.attributes.color.needsUpdate = true;
+    }
+
+    setColors();
+    colorAInput.addEventListener("input", setColors);
+    colorBInput.addEventListener("input", setColors);
+
+    function buildTextTargets() {
+      const canvas = document.createElement("canvas");
+      canvas.width = 1700;
+      canvas.height = 560;
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "white";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.font = "168px STXingkai, Xingkai SC, Kaiti SC, KaiTi, STKaiti, serif";
+      ctx.fillText("赵老师生日快乐", canvas.width / 2, 215);
+      ctx.font = "104px STXingkai, Xingkai SC, Kaiti SC, KaiTi, STKaiti, serif";
+      ctx.fillText("欣佳敬上", canvas.width / 2, 405);
+      const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+      const samples = [];
+      const step = 4;
+      for (let y = 0; y < canvas.height; y += step) {
+        for (let x = 0; x < canvas.width; x += step) {
+          const alpha = data[(y * canvas.width + x) * 4 + 3];
+          if (alpha > 40) samples.push([x, y, alpha / 255]);
+        }
+      }
+      for (let i = 0; i < particleCount; i++) {
+        const sample = samples[(i * 37 + Math.floor(seeds[i * 4 + 1] * 997)) % samples.length];
+        const ix = i * 3;
+        textTargets[ix] = (sample[0] / canvas.width - 0.5) * 15.8 + rand(-0.018, 0.018);
+        textTargets[ix + 1] = -(sample[1] / canvas.height - 0.5) * 5.45 + rand(-0.018, 0.018);
+        textTargets[ix + 2] = rand(-0.14, 0.14);
+      }
+    }
+
+    buildTextTargets();
+
+    function triggerFirework(strength = 1) {
+      state.fireworkUntil = performance.now() + 1450;
+      for (let i = 0; i < particleCount; i++) {
+        const ix = i * 3;
+        const dir = new THREE.Vector3(positions[ix], positions[ix + 1] + rand(-0.5, 0.5), positions[ix + 2]);
+        if (dir.lengthSq() < 0.01) dir.set(rand(-1, 1), rand(-1, 1), rand(-1, 1));
+        dir.normalize();
+        const speed = rand(0.095, 0.24) * strength;
+        velocity[ix] = dir.x * speed;
+        velocity[ix + 1] = dir.y * speed + rand(0.018, 0.09) * strength;
+        velocity[ix + 2] = dir.z * speed;
+        phase[i] = 2;
+      }
+    }
+
+    function queueFireworkSeries() {
+      const now = performance.now();
+      state.burstCount = 7;
+      state.nextBurstAt = now;
+      state.fireworkUntil = now + 2600;
+      state.textMode = false;
+    }
+
+    function triggerHeartText() {
+      const now = performance.now();
+      state.textMode = false;
+      triggerFirework(1.12);
+      state.textStartAt = now + 760;
+      state.fireworkUntil = now + 1150;
+    }
+
+    function fingerState(landmarks) {
+      const tips = [8, 12, 16, 20];
+      const pips = [6, 10, 14, 18];
+      const wrist = landmarks[0];
+      const middleMcp = landmarks[9];
+      const thumbTip = landmarks[4];
+      const thumbIp = landmarks[3];
+      const thumbMcp = landmarks[2];
+      const thumbOpen =
+        distance(thumbTip, wrist) > distance(thumbIp, wrist) + 0.045 &&
+        distance(thumbTip, middleMcp) > distance(thumbMcp, middleMcp) + 0.055;
+
+      const fingers = {
+        thumb: thumbOpen,
+        index: landmarks[8].y < landmarks[6].y - 0.022,
+        middle: landmarks[12].y < landmarks[10].y - 0.022,
+        ring: landmarks[16].y < landmarks[14].y - 0.018,
+        pinky: landmarks[20].y < landmarks[18].y - 0.018,
+      };
+      const count = Object.values(fingers).filter(Boolean).length;
+      return { ...fingers, count };
+    }
+
+    function classifyGesture(landmarks, openness) {
+      const f = fingerState(landmarks);
+      const shaka = f.thumb && f.pinky && !f.index && !f.middle && !f.ring;
+      const one = f.index && !f.middle && !f.ring && !f.pinky;
+      const fist = f.count === 0 || openness < 0.18;
+      const open = f.count >= 4 && openness > 0.58;
+
+      if (shaka) return { code: "6", name: "Gesture 6 · Tight gather", gather: 1, fist, open };
+      if (one) return { code: "1", name: "Gesture 1 · Wide gather", gather: 2, fist, open };
+      if (fist) return { code: "F", name: "Fist · ready", gather: 0, fist, open };
+      if (open) return { code: "OPEN", name: "Open · release", gather: 0, fist, open };
+      return { code: "–", name: "Hand openness · free spread", gather: 0, fist, open };
+    }
+
+    function isHeartGesture(hands) {
+      if (!hands || hands.length < 2) return false;
+      const a = hands[0];
+      const b = hands[1];
+      const palmA = distance(a[5], a[17]) || 0.1;
+      const palmB = distance(b[5], b[17]) || 0.1;
+      const palm = (palmA + palmB) / 2;
+      const thumbGap = distance(a[4], b[4]);
+      const indexGap = distance(a[8], b[8]);
+      const handsApart = distance(a[9], b[9]);
+      const thumbsNear = thumbGap < palm * 1.35;
+      const indexesNear = indexGap < palm * 1.55;
+      const enoughSpace = handsApart > palm * 1.15 && handsApart < palm * 4.2;
+      const topPairAboveThumbs = (a[8].y + b[8].y) / 2 < (a[4].y + b[4].y) / 2 + palm * 0.35;
+      return thumbsNear && indexesNear && enoughSpace && topPairAboveThumbs;
+    }
+
+    function distance(a, b) {
+      const dx = a.x - b.x;
+      const dy = a.y - b.y;
+      const dz = (a.z || 0) - (b.z || 0);
+      return Math.sqrt(dx * dx + dy * dy + dz * dz);
+    }
+
+    function computeOpenness(landmarks) {
+      const wrist = landmarks[0];
+      const palm = distance(landmarks[5], landmarks[17]) || 0.1;
+      const tips = [4, 8, 12, 16, 20];
+      let sum = 0;
+      for (const idx of tips) sum += distance(landmarks[idx], wrist);
+      const normalized = sum / tips.length / palm;
+      return THREE.MathUtils.clamp((normalized - 1.35) / 1.65, 0, 1);
+    }
+
+    const hands = new Hands({
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`,
+    });
+    hands.setOptions({
+      maxNumHands: 2,
+      modelComplexity: 1,
+      minDetectionConfidence: 0.68,
+      minTrackingConfidence: 0.62,
+    });
+    hands.onResults((results) => {
+      const handsList = results.multiHandLandmarks || [];
+      const hand = handsList[0];
+      if (!hand) {
+        state.handVisible = false;
+        state.targetOpenness = 0.32;
+        state.gesture = 0;
+        state.gestureName = "none";
+        state.gatherTarget = 0;
+        state.wasFist = false;
+        state.heartArmed = true;
+        cakeState.pinch = false;
+        return;
+      }
+
+      state.handVisible = true;
+      const now = performance.now();
+      const palmWidth = distance(hand[5], hand[17]) || 0.1;
+      cakeState.handX = 1 - (hand[4].x + hand[8].x) / 2;
+      cakeState.handY = (hand[4].y + hand[8].y) / 2;
+      cakeState.pinch = distance(hand[4], hand[8]) < palmWidth * 0.48;
+
+      if (isHeartGesture(handsList)) {
+        state.gesture = "♥";
+        state.gestureName = "Heart · Zhao Laoshi";
+        state.gatherTarget = 0;
+        state.targetOpenness = 0.72;
+        if (state.heartArmed) {
+          triggerHeartText();
+          state.heartArmed = false;
+        }
+        return;
+      }
+      state.heartArmed = true;
+
+      state.targetOpenness = computeOpenness(hand);
+      const classified = classifyGesture(hand, state.targetOpenness);
+      state.gesture = classified.code;
+      state.gestureName = classified.name;
+      state.gatherTarget = classified.gather;
+
+      if (classified.fist) {
+        state.wasFist = true;
+        state.fistAt = now;
+      }
+
+      if (classified.open && state.wasFist && now - state.fistAt < 1600) {
+        queueFireworkSeries();
+        state.wasFist = false;
+      }
+
+      if (!classified.fist && now - state.fistAt > 1800) {
+        state.wasFist = false;
+      }
+
+      state.lastGesture = classified.code;
+    });
+
+    let processing = false;
+    async function processFrame() {
+      if (cameraStream && video.readyState >= 2 && !processing) {
+        processing = true;
+        try {
+          await hands.send({ image: video });
+        } catch (error) {
+          console.warn(error);
+        } finally {
+          processing = false;
+        }
+      }
+      requestAnimationFrame(processFrame);
+    }
+
+    let cameraStream = null;
+    let cameraLoopStarted = false;
+
+    function stopCamera() {
+      if (cameraStream) {
+        cameraStream.getTracks().forEach((track) => track.stop());
+      }
+      cameraStream = null;
+      video.pause();
+      video.srcObject = null;
+      cameraPreview.style.display = "none";
+      cameraButton.textContent = "Camera";
+      statusEl.textContent = "摄像头已关闭。点击 Camera 可再次开启。";
+      state.handVisible = false;
+      state.targetOpenness = 0;
+    }
+
+    async function toggleCamera() {
+      if (cameraStream) {
+        stopCamera();
+        return;
+      }
+
+      permission.style.display = "none";
+      statusEl.textContent = "正在请求摄像头权限…";
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            width: { ideal: 960 },
+            height: { ideal: 540 },
+            facingMode: "user",
+          },
+          audio: false,
+        });
+        cameraStream = stream;
+        video.srcObject = stream;
+        await video.play();
+        cameraPreview.style.display = "block";
+        cameraButton.textContent = "Camera Off";
+        statusEl.textContent = "摄像头已连接。请举起一只手。";
+        if (!cameraLoopStarted) {
+          cameraLoopStarted = true;
+          requestAnimationFrame(processFrame);
+        }
+      } catch (error) {
+        console.error(error);
+        cameraStream = null;
+        statusEl.textContent = "摄像头未连接。请允许权限后重试。";
+        permission.style.display = "block";
+      }
+    }
+
+    cameraButton.addEventListener("click", toggleCamera);
+    document.getElementById("fullscreen").addEventListener("click", async () => {
+      if (!document.fullscreenElement) {
+        await document.documentElement.requestFullscreen();
+      } else {
+        await document.exitFullscreen();
+      }
+    });
+
+    window.addEventListener("pointermove", (event) => {
+      state.mouseX = (event.clientX / window.innerWidth - 0.5) * 2;
+      state.mouseY = (event.clientY / window.innerHeight - 0.5) * 2;
+      cakeState.pointerX = event.clientX / window.innerWidth;
+      cakeState.pointerY = event.clientY / window.innerHeight;
+    });
+
+    cakeCanvas.addEventListener("pointerdown", (event) => {
+      cakeState.pointerDown = true;
+      cakeCanvas.setPointerCapture?.(event.pointerId);
+      extinguishCake(event.clientX, event.clientY);
+    });
+    cakeCanvas.addEventListener("pointerup", () => { cakeState.pointerDown = false; });
+    cakeCanvas.addEventListener("pointercancel", () => { cakeState.pointerDown = false; });
+
+    window.addEventListener("message", (event) => {
+      if (event.origin !== window.location.origin || event.data?.type !== "birthday-scene") return;
+      cakeState.active = event.data.scene === "cake";
+      document.body.classList.toggle("cake-mode", cakeState.active);
+      if (cakeState.active) {
+        modeLabel.textContent = "Pinch a flame · Click to blow out";
+      }
+    });
+
+    window.addEventListener("wheel", (event) => {
+      window.parent.postMessage({ type: "birthday-scroll", deltaY: event.deltaY }, window.location.origin);
+    }, { passive: true });
+
+    function resize() {
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      renderer.setSize(width, height, false);
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      cakeCanvas.width = Math.round(width * dpr);
+      cakeCanvas.height = Math.round(height * dpr);
+      cakeCanvas.style.width = `${width}px`;
+      cakeCanvas.style.height = `${height}px`;
+      cakeCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      buildCakeParticles(width, height);
+    }
+    window.addEventListener("resize", resize);
+    resize();
+
+    const clock = new THREE.Clock();
+
+    function drawFlame(x, y, scale = 1, alpha = 1) {
+      const glow = cakeCtx.createRadialGradient(x, y, 2, x, y, 34 * scale);
+      glow.addColorStop(0, `rgba(255,255,220,${0.98 * alpha})`);
+      glow.addColorStop(0.28, `rgba(255,190,93,${0.72 * alpha})`);
+      glow.addColorStop(1, "rgba(255,153,92,0)");
+      cakeCtx.fillStyle = glow;
+      cakeCtx.beginPath();
+      cakeCtx.arc(x, y, 34 * scale, 0, Math.PI * 2);
+      cakeCtx.fill();
+      cakeCtx.fillStyle = `rgba(255,171,77,${alpha})`;
+      cakeCtx.beginPath();
+      cakeCtx.moveTo(x, y - 18 * scale);
+      cakeCtx.bezierCurveTo(x + 13 * scale, y - 3 * scale, x + 8 * scale, y + 10 * scale, x, y + 12 * scale);
+      cakeCtx.bezierCurveTo(x - 8 * scale, y + 10 * scale, x - 13 * scale, y - 3 * scale, x, y - 18 * scale);
+      cakeCtx.fill();
+      cakeCtx.fillStyle = `rgba(255,250,218,${alpha})`;
+      cakeCtx.beginPath();
+      cakeCtx.ellipse(x, y + 3 * scale, 3.5 * scale, 7 * scale, 0, 0, Math.PI * 2);
+      cakeCtx.fill();
+    }
+
+    function animateCake() {
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      const time = performance.now() * 0.001;
+      cakeCtx.clearRect(0, 0, width, height);
+
+      for (const particle of cakeState.particles) {
+        particle.x += (particle.tx - particle.x) * (cakeState.active ? 0.055 : 0.018);
+        particle.y += (particle.ty - particle.y) * (cakeState.active ? 0.055 : 0.018);
+        cakeCtx.globalAlpha = particle.alpha;
+        cakeCtx.fillStyle = particle.color;
+        cakeCtx.beginPath();
+        cakeCtx.arc(particle.x + Math.sin(time + particle.phase) * 0.8, particle.y + Math.cos(time * 0.9 + particle.phase) * 0.7, particle.size, 0, Math.PI * 2);
+        cakeCtx.fill();
+      }
+      cakeCtx.globalAlpha = 1;
+
+      for (let i = 0; i < candles.length; i++) {
+        const candle = candles[i];
+        const point = flamePoint(candle);
+        const candleHeight = height * 0.105;
+        const gradient = cakeCtx.createLinearGradient(point.x - 8, 0, point.x + 8, 0);
+        gradient.addColorStop(0, i === 1 ? "#ead7f6" : "#f5c8dd");
+        gradient.addColorStop(0.5, "#fffaf5");
+        gradient.addColorStop(1, i === 1 ? "#cfa6e7" : "#e89abd");
+        cakeCtx.fillStyle = gradient;
+        cakeCtx.beginPath();
+        cakeCtx.roundRect(point.x - 9, point.y + 16, 18, candleHeight, 8);
+        cakeCtx.fill();
+        cakeCtx.strokeStyle = "rgba(102,74,102,.25)";
+        cakeCtx.lineWidth = 2;
+        cakeCtx.beginPath();
+        cakeCtx.moveTo(point.x, point.y + 16);
+        cakeCtx.lineTo(point.x, point.y + 7);
+        cakeCtx.stroke();
+        if (candle.lit) drawFlame(point.x, point.y, 0.75 + Math.sin(time * 5 + i) * 0.06);
+        if (candle.out) {
+          cakeCtx.strokeStyle = `rgba(115,91,120,${0.2 + Math.sin(time + i) * 0.08})`;
+          cakeCtx.beginPath();
+          cakeCtx.moveTo(point.x, point.y + 3);
+          cakeCtx.bezierCurveTo(point.x + 12, point.y - 12, point.x - 8, point.y - 24, point.x + 8, point.y - 38);
+          cakeCtx.stroke();
+        }
+      }
+
+      const controlX = (cakeState.pinch && state.handVisible ? cakeState.handX : cakeState.pointerX) * width;
+      const controlY = (cakeState.pinch && state.handVisible ? cakeState.handY : cakeState.pointerY) * height;
+      const carryingFlame = cakeState.active && (cakeState.pinch || cakeState.pointerDown) && !cakeState.wish;
+      if (carryingFlame) {
+        drawFlame(controlX, controlY, 0.9);
+        tryLightCake(controlX, controlY);
+      }
+
+      for (let i = cakeState.sparkles.length - 1; i >= 0; i--) {
+        const sparkle = cakeState.sparkles[i];
+        sparkle.x += sparkle.vx;
+        sparkle.y += sparkle.vy;
+        sparkle.vy += 0.035;
+        sparkle.life -= 0.009;
+        cakeCtx.globalAlpha = Math.max(0, sparkle.life);
+        cakeCtx.fillStyle = sparkle.color;
+        cakeCtx.beginPath();
+        cakeCtx.arc(sparkle.x, sparkle.y, 1.5 + sparkle.life * 2.5, 0, Math.PI * 2);
+        cakeCtx.fill();
+        if (sparkle.life <= 0) cakeState.sparkles.splice(i, 1);
+      }
+      cakeCtx.globalAlpha = 1;
+      requestAnimationFrame(animateCake);
+    }
+
+    function animate() {
+      const elapsed = clock.getElapsedTime();
+      const now = performance.now();
+      state.openness += (state.targetOpenness - state.openness) * 0.085;
+      if (state.textStartAt && now >= state.textStartAt) {
+        state.textMode = true;
+        state.textStartAt = 0;
+      }
+      if (state.burstCount > 0 && now >= state.nextBurstAt) {
+        triggerFirework(1 + (7 - state.burstCount) * 0.08);
+        state.burstCount--;
+        state.nextBurstAt = now + rand(150, 260);
+      }
+
+      let spread = 1.02 + state.openness * 1.55;
+      let scale = 0.78 + state.openness * 0.52;
+      let gatherPull = 0;
+      if (state.gatherTarget === 1) {
+        spread = 0.12;
+        scale = 0.16;
+        gatherPull = 0.16;
+      } else if (state.gatherTarget === 2) {
+        spread = 0.46;
+        scale = 0.5;
+        gatherPull = 0.11;
+      }
+      const fireworksActive = now < state.fireworkUntil;
+
+      for (let i = 0; i < particleCount; i++) {
+        const ix = i * 3;
+        const wobble = Math.sin(elapsed * seeds[i * 4] + seeds[i * 4 + 1]) * 0.08 * seeds[i * 4 + 2];
+        let targetX = base[ix] * spread + wobble;
+        let targetY = base[ix + 1] * scale + Math.cos(elapsed * 0.8 + seeds[i * 4 + 1]) * 0.05;
+        let targetZ = base[ix + 2] * spread + Math.sin(elapsed * 0.7 + seeds[i * 4 + 1]) * 0.08;
+        if (state.textMode) {
+          targetX = textTargets[ix] + Math.sin(elapsed * 1.1 + seeds[i * 4 + 1]) * 0.018;
+          targetY = textTargets[ix + 1] + Math.cos(elapsed * 1.2 + seeds[i * 4 + 1]) * 0.018;
+          targetZ = textTargets[ix + 2];
+        }
+        if (gatherPull) {
+          const ring = Math.sin(seeds[i * 4 + 1] * 3.0) * gatherPull;
+          targetX += ring;
+          targetY += Math.cos(seeds[i * 4 + 1] * 2.0) * gatherPull * 0.55;
+          targetZ += Math.sin(seeds[i * 4 + 1] * 2.4) * gatherPull;
+        }
+
+        if (phase[i] === 2 && fireworksActive) {
+          positions[ix] += velocity[ix];
+          positions[ix + 1] += velocity[ix + 1];
+          positions[ix + 2] += velocity[ix + 2];
+          velocity[ix] *= 0.988;
+          velocity[ix + 1] = velocity[ix + 1] * 0.986 - 0.0025;
+          velocity[ix + 2] *= 0.988;
+        } else if (phase[i] === 1) {
+          positions[ix] += velocity[ix];
+          positions[ix + 1] += velocity[ix + 1];
+          positions[ix + 2] += velocity[ix + 2];
+          velocity[ix] *= 0.992;
+          velocity[ix + 1] -= 0.0038;
+          velocity[ix + 2] *= 0.992;
+          if (positions[ix + 1] < -7.5 || positions[ix + 1] > 7.8) {
+            phase[i] = 0;
+          }
+        } else {
+          phase[i] = 0;
+          const follow = state.textMode ? 0.075 : state.gatherTarget ? 0.085 : 0.032;
+          positions[ix] += (targetX - positions[ix]) * follow;
+          positions[ix + 1] += (targetY - positions[ix + 1]) * follow;
+          positions[ix + 2] += (targetZ - positions[ix + 2]) * follow;
+        }
+
+        if (!fireworksActive && phase[i] === 2) {
+          positions[ix] += (targetX - positions[ix]) * 0.04;
+          positions[ix + 1] += (targetY - positions[ix + 1]) * 0.04;
+          positions[ix + 2] += (targetZ - positions[ix + 2]) * 0.04;
+          if (Math.abs(positions[ix] - targetX) < 0.2) phase[i] = 0;
+        }
+      }
+
+      geometry.attributes.position.needsUpdate = true;
+      if (state.textMode) {
+        root.rotation.y += (0 - root.rotation.y) * 0.08;
+        root.rotation.x += (0 - root.rotation.x) * 0.08;
+        root.rotation.z += (0 - root.rotation.z) * 0.08;
+      } else {
+        root.rotation.y += ((state.mouseX * 0.18 + elapsed * 0.04) - root.rotation.y) * 0.02;
+        root.rotation.x += ((-state.mouseY * 0.08) - root.rotation.x) * 0.025;
+        root.rotation.z = Math.sin(elapsed * 0.15) * 0.025;
+      }
+
+      gestureEl.textContent = state.gesture ? String(state.gesture) : "–";
+      opennessEl.textContent = `${Math.round(state.openness * 100)}%`;
+      if (cakeState.active) modeLabel.textContent = cameraStream ? "Pinch a flame · Click to blow out" : "Drag a flame · Click to blow out";
+      else if (!state.handVisible) modeLabel.textContent = "Waiting for hand";
+      else if (state.textMode) modeLabel.textContent = "Heart · 赵老师生日快乐 · 欣佳敬上";
+      else if (state.burstCount > 0 || fireworksActive) modeLabel.textContent = "Fist → open · Boom boom boom";
+      else modeLabel.textContent = state.gestureName;
+
+      renderer.render(scene, camera);
+      requestAnimationFrame(animate);
+    }
+
+    window.__cakeDebug = { cakeState, candles };
+    animateCake();
+
+    window.addEventListener("beforeunload", stopCamera);
+    animate();
+  </script>
+</body>
+</html>
