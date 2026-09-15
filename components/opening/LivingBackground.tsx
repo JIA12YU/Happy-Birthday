@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { withBasePath } from "@/lib/basePath";
 
 type LivingBackgroundProps = {
   started: boolean;
@@ -11,7 +12,7 @@ export default function LivingBackground({ started }: LivingBackgroundProps) {
     <div className="absolute inset-0 overflow-hidden bg-[#f5efd8]">
       <motion.video
         className="absolute inset-0 h-full w-full object-cover will-change-transform"
-        src="/assets/summer2024/opening-loop.mp4"
+        src={withBasePath("/assets/summer2024/opening-loop.mp4")}
         autoPlay
         muted
         loop

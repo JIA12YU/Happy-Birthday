@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import { useState } from "react";
+import { withBasePath } from "@/lib/basePath";
 
 const memoryPages = [
   {
@@ -104,7 +105,7 @@ export default function Encounter2024() {
                 transition={{ duration: 1.1, delay: 0.28, ease: [0.22, 1, 0.36, 1] }}
               >
                 <img
-                  src={currentPage.image}
+                  src={withBasePath(currentPage.image)}
                   alt={currentPage.alt}
                 />
               </motion.figure>

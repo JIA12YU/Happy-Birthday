@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { gsap } from "gsap";
+import { withBasePath } from "@/lib/basePath";
 
 const photos = [
   { src: "/assets/photo-trail/photos/01-garden-pavilion.jpg", position: "50% 55%", ratio: 1.35 },
@@ -130,7 +131,11 @@ export default function PhotoTrailMemory() {
 
   return (
     <section className="memory-trail-scene" ref={sceneRef} aria-label="再次流动的时间照片画廊">
-      <div className="memory-trail-background" aria-hidden="true" />
+      <div
+        className="memory-trail-background"
+        aria-hidden="true"
+        style={{ backgroundImage: `url(${withBasePath("/assets/photo-trail/backgrounds/sunflower-watercolor.png")})` }}
+      />
       <div className="memory-trail-title">
         <h2>再次流动的时间，是珍贵的礼物。</h2>
         <p>Let time flow again, as a precious gift from my heart.</p>
@@ -142,7 +147,7 @@ export default function PhotoTrailMemory() {
             key={photo.src}
             ref={(element) => { imagesRef.current[index] = element; }}
           >
-            <img src={photo.src} alt="" draggable="false" style={{ objectPosition: photo.position }} />
+            <img src={withBasePath(photo.src)} alt="" draggable="false" style={{ objectPosition: photo.position }} />
           </figure>
         ))}
       </div>

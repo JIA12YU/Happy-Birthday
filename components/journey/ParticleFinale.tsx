@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { withBasePath } from "@/lib/basePath";
 
 export default function ParticleFinale() {
   const sectionRef = useRef<HTMLElement | null>(null);
@@ -112,11 +113,11 @@ export default function ParticleFinale() {
       <div className="journey-particle-stage">
         <iframe
           ref={frameRef}
-          src="/particle-system.html"
+          src={withBasePath("/particle-system.html")}
           title="Hand gesture birthday particle finale and cake"
           allow="camera"
         />
-        <audio ref={audioRef} src="/audio/birthday-piano.mp3" preload="metadata" loop />
+        <audio ref={audioRef} src={withBasePath("/audio/birthday-piano.mp3")} preload="metadata" loop />
         <button
           type="button"
           className={`journey-music-toggle${isMusicPlaying ? " is-playing" : ""}`}
@@ -126,7 +127,7 @@ export default function ParticleFinale() {
         >
           <img
             className="journey-music-gift"
-            src="/assets/ui/music-gift.png"
+            src={withBasePath("/assets/ui/music-gift.png")}
             alt=""
             draggable="false"
             aria-hidden="true"

@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import { useState } from "react";
+import { withBasePath } from "@/lib/basePath";
 
 const autumnPages = [
   {
@@ -108,7 +109,7 @@ export default function AutumnExploration2025() {
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 transition={{ duration: 1.1, delay: 0.28, ease: [0.22, 1, 0.36, 1] }}
               >
-                <img src={currentPage.image} alt={currentPage.alt} />
+                <img src={withBasePath(currentPage.image)} alt={currentPage.alt} />
               </motion.figure>
             </div>
 

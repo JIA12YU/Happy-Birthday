@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import { useState } from "react";
+import { withBasePath } from "@/lib/basePath";
 
 const growthPages = [
   {
@@ -97,7 +98,7 @@ export default function SummerGrowth2026() {
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 transition={{ duration: 1.1, delay: 0.28, ease: [0.22, 1, 0.36, 1] }}
               >
-                <img src={currentPage.image} alt={currentPage.alt} />
+                <img src={withBasePath(currentPage.image)} alt={currentPage.alt} />
                 <div className="chapter-closing-sunlight" aria-hidden="true" />
                 <div className="chapter-closing-clouds" aria-hidden="true" />
                 <div className="chapter-closing-breeze" aria-hidden="true" />
@@ -149,7 +150,7 @@ export default function SummerGrowth2026() {
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     transition={{ duration: 1.1, delay: 0.28, ease: [0.22, 1, 0.36, 1] }}
                   >
-                    <img src={currentPage.image} alt={currentPage.alt} />
+                    <img src={withBasePath(currentPage.image)} alt={currentPage.alt} />
                   </motion.figure>
                 </div>
 

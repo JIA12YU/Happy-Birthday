@@ -2501,7 +2501,9 @@ button {
   inset: -2.5%;
   z-index: 0;
   pointer-events: none;
-  background: url("/assets/photo-trail/backgrounds/sunflower-watercolor.png") center / cover no-repeat;
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
   animation: memoryTrailBackground 24s ease-in-out infinite alternate;
 }
 
